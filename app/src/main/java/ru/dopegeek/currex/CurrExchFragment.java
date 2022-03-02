@@ -2,18 +2,24 @@ package ru.dopegeek.currex;
 
 import static ru.dopegeek.currex.CurrencyFactory.sCurrencyList;
 
+import android.content.Context;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.PopupWindow;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -45,12 +51,33 @@ public class CurrExchFragment extends Fragment {
         outState.putString("key", "value");
     }
 
+    public static boolean hasConnection(final Context context) {
+        ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        wifiInfo = cm.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+        if (wifiInfo != null && wifiInfo.isConnected()) {
+            return true;
+        }
+        wifiInfo = cm.getActiveNetworkInfo();
+        return wifiInfo != null && wifiInfo.isConnected();
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (savedInstanceState != null) {
             String string = savedInstanceState.getString("key");
         }
+        setHasOptionsMenu(true);
+    }
+
+    @Override
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.refresh_list, menu);
     }
 
     @Nullable
@@ -70,9 +97,18 @@ public class CurrExchFragment extends Fragment {
         updateUI();
     }
 
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        updateUI();
+        return super.onOptionsItemSelected(item);
+    }
 
     private void updateUI() {
-        new DownloadingTask().execute();
+        if (hasConnection(getActivity())) {
+            new DownloadingTask().execute();
+        } else {
+            Toast.makeText(getActivity(), R.string.no_internet, Toast.LENGTH_LONG).show();
+        }
         CurrencyFactory curFab = CurrencyFactory.get(getActivity());
         List<Currency> currencyList = curFab.getCurrencyList();
 
@@ -83,39 +119,6 @@ public class CurrExchFragment extends Fragment {
             mCurrencyAdapter.setValuteList(currencyList);
             mCurrencyAdapter.notifyDataSetChanged();
         }
-    }
-
-    private void showPopupWindow(View v, Currency cur) {
-
-        View customView = LayoutInflater.from(getContext()).inflate(R.layout.popup_window, null);
-        EditText input = customView.findViewById(R.id.input_popup);
-        TextView output = customView.findViewById(R.id.output_popup);
-        output.setText(String.format("%s", cur.getValue()));
-
-        final TextWatcher calculateWatcher = new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
-            }
-
-            @Override
-            public void afterTextChanged(Editable editable) {
-                if (editable.length() != 0)
-                    output.setText(String.format("%s", cur.getNominal() / cur.getValue() * Float.parseFloat(input.getText().toString())));
-            }
-        };
-        input.addTextChangedListener(calculateWatcher);
-
-
-        TextView charcodePopup = customView.findViewById(R.id.charcode_popup);
-        charcodePopup.setText(cur.getCharCode());
-        PopupWindow popupWindow = new PopupWindow(customView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        popupWindow.setFocusable(true);
-        popupWindow.update();
-        popupWindow.showAtLocation(v, Gravity.CENTER, 0, 0);
     }
 
     private class CurrencyHolder extends RecyclerView.ViewHolder {
@@ -200,5 +203,38 @@ public class CurrExchFragment extends Fragment {
         @Override
         protected void onPostExecute(Void aVoid) {
         }
+    }
+
+    private void showPopupWindow(View v, Currency cur) {
+
+        View customView = LayoutInflater.from(getContext()).inflate(R.layout.popup_window, null);
+        EditText input = customView.findViewById(R.id.input_popup);
+        TextView output = customView.findViewById(R.id.output_popup);
+        output.setText(String.format("%s", "0"));
+
+        final TextWatcher calculateWatcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence charSequence, int i, int i1, int i2) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable editable) {
+                if (editable.length() != 0)
+                    output.setText(String.format("%s", cur.getNominal() / cur.getValue() * Float.parseFloat(input.getText().toString())));
+            }
+        };
+        input.addTextChangedListener(calculateWatcher);
+
+
+        TextView charcodePopup = customView.findViewById(R.id.charcode_popup);
+        charcodePopup.setText(cur.getCharCode());
+        PopupWindow popupWindow = new PopupWindow(customView, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        popupWindow.setFocusable(true);
+        popupWindow.update();
+        popupWindow.showAtLocation(v, Gravity.CENTER, 0, 0);
     }
 }
